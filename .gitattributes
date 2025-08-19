@@ -1,0 +1,9 @@
+# Always use LF in source and mod files
+*.go         text eol=lf
+go.mod       text eol=lf
+go.sum       text eol=lf
+Makefile     text eol=lf
+Dockerfile   text eol=lf
+*.sh         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
