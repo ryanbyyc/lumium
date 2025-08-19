@@ -1,0 +1,16 @@
+root = "/app/backend"
+tmp_dir = "bin"
+
+[build]
+cmd = "go build -o ./bin/api ./services/api"
+bin = "bin/api"
+include_ext = ["go"]
+include_dir = ["services/api", "lib"]
+exclude_dir = ["bin", ".git", "vendor"]
+delay = 300
+
+[log]
+time = true
+
+[run]
+cmd = "bin/api"

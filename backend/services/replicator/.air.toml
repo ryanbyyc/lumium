@@ -1,0 +1,16 @@
+root = "/app/backend"
+tmp_dir = "bin"
+
+[build]
+cmd = "go build -o ./bin/replicator ./services/replicator"
+bin = "bin/replicator"
+include_ext = ["go"]
+include_dir = ["services/replicator", "lib"]
+exclude_dir = ["bin", ".git", "vendor"]
+delay = 300
+
+[log]
+time = true
+
+[run]
+cmd = "bin/replicator"
