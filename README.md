@@ -16,12 +16,12 @@ Own your photos. Keep the best. Reclaim space.
 
 Lumium is under active development. Our roadmap is:
 
-- Ingests millions of images without choking
-- Finds duplicates and near-duplicates
-- Groups trips and bursts automatically
-- Lets you keep RAWs + JPEGs linked
-- Multi-tenant (families, studios, clubs)
-- Optional end-to-end encryption + encrypted cloud backup
+* Ingests millions of images without choking
+* Finds duplicates and near-duplicates
+* Groups trips and bursts automatically
+* Lets you keep RAWs + JPEGs linked
+* Multi-tenant (families, studios, clubs)
+* Optional end-to-end encryption + encrypted cloud backup
 
 ## Stack
 
@@ -40,9 +40,9 @@ Lumium is under active development. Our roadmap is:
 
 ## HTTP endpoints (dev defaults)
 
-API: 
-Adminer (Postgres): 
-ClickHouse UI: 
-MinIO console: 
+* API: 
+* Adminer (Postgres): 
+* ClickHouse UI: 
+* MinIO console: 
 
 Each service also exposes `/health`, `/ready` & `/whoami`.
