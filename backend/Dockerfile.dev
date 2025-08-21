@@ -1,4 +1,5 @@
 FROM golang:1.25-bookworm
 RUN go install github.com/air-verse/air@latest && mv /go/bin/air /usr/local/bin/air
+RUN go install github.com/swaggo/swag/cmd/swag@latest
 RUN go version
 WORKDIR /app/backend

@@ -46,3 +46,8 @@ Lumium is under active development. Our roadmap is:
 * MinIO console: 
 
 Each service also exposes `/health`, `/ready` & `/whoami`.
+
+
+## Helper commands
+
+`docker exec -it lm_web bash`

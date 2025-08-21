@@ -38,6 +38,7 @@ services:
     ports:
       - "${POSTGRES_PORT}:${POSTGRES_PORT}"
     volumes:
+      - "./backend/docker/pgsql/init.sql:/docker-entrypoint-initdb.d/init.sql"
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -47,6 +48,7 @@ services:
     env_file:
       - ./.env
     attach: false
+
   nats:
     container_name: ${SERVICE_PREFIX:-lm_}nats
     image: nats:latest
@@ -61,7 +63,8 @@ services:
     container_name: ${SERVICE_PREFIX:-lm_}adminer
     image: adminer:latest
     environment:
-      - ADMINER_DEFAULT_SERVER=postgres
+      - ADMINER_DEFAULT_SERVER=${SERVICE_PREFIX:-lm_}postgres
+      - ADMINER_DEFAULT_USER=${POSTGRES_USER}
     ports:
       - "8088:8080"
     depends_on:
@@ -82,7 +85,8 @@ services:
     volumes:
       - chdata:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping | grep -q 'Ok.'"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:8123/ping | grep -q 'Ok.'"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -102,7 +106,11 @@ services:
     volumes:
       - minio:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:9000/minio/health/live || exit 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -159,7 +167,7 @@ services:
       - "8089:8080"
     attach: false
 
-# PROPERTIES (Like API & Frontend)
+  # PROPERTIES (Like API & Frontend)
 
   api:
     <<: *go-service
@@ -204,7 +212,36 @@ services:
     <<: *go-service
     command: ["air", "-c", "services/replicator/.air.toml"]
     attach: true
-
+  web:
+    env_file:
+      - ./.env
+    container_name: ${SERVICE_PREFIX:-lm_}web
+    build:
+      context: .
+      dockerfile: frontend/web/Dockerfile.dev
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    working_dir: /workspace/frontend/web
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/workspace
+    environment:
+      - NODE_ENV=development
+      - PORT=5173
+      - NPM_CONFIG_CACHE=/home/frontend/.npm
+    command: "npm run dev"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "http=require('http');http.get('http://localhost:5173',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
 # Volumes
 volumes:
   pgdata:

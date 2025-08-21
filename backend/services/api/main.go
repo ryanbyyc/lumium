@@ -1,21 +1,30 @@
 package main
 
 import (
-	"lumium/lib/config"
-	"lumium/lib/logger"
-	"lumium/lib/lumnet"
-	"lumium/lib/store"
-
 	"context"
 	"encoding/json"
 	"net"
 	"net/http"
 	"os"
+	"strings"
+
+	"lumium/lib/config"
+	"lumium/lib/logger"
+	"lumium/lib/lumnet"
+	"lumium/lib/store"
+	auth "lumium/services/api/auth"
+	apihandlers "lumium/services/api/handlers"
+
+	docs "lumium/services/api/docs"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-// serviceName allows us to identify the service
 const serviceName = "lumium_api"
 
+// WhoAmIResponse is the structure for declaring the instance
 type WhoAmIResponse struct {
 	Hostname string `json:"hostname"`
 	PID      int    `json:"pid"`
@@ -34,7 +43,8 @@ var (
 	listenFn = net.Listen
 
 	// The beauty of keeping initHTTPFn is that its an injectable seam
-	// We can nuke, rename, or completely rewrite Serve under the hood, and our tests don't even flinch
+	// We can nuke, rename, or completely rewrite Serve under the hood,
+	// and our tests don't even flinch
 	initHTTPFn = lumnet.Serve
 
 	// newHandlerFn return a small interface so tests can stub without importing store types
@@ -86,19 +96,39 @@ func BuildRouter(db dbPinger) http.Handler {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
-	// if pool, ok := db.(*pgxpool.Pool); ok {
-	// 	// r.Route("/api/v1", func(api chi.Router) {
-	// 	// 	app := handlers.NewApp(pool)
-	// 	// 	handlers.MountAPI(api,
-	// 	// 		handlers.NewAuth(app),
-	// 	// 	)
-	// 	// })
-	// }
+	mountRoutes(r, db)
+	mountSwagger(r)
 
 	return r
 }
 
-// I don't even see the code... All I see is blonde, brunette, redhead...
+func mountRoutes(r *chi.Mux, db any) {
+	if pool, ok := db.(*pgxpool.Pool); ok {
+		r.Route("/api/v1", func(api chi.Router) {
+			app := apihandlers.NewApp(pool)
+			apihandlers.MountAPI(api,
+				auth.New(app), // mounts /auth under /api/v1
+			)
+		})
+	}
+}
+
+func mountSwagger(r *chi.Mux) {
+	// Make “Try it out” use /api/v1 prefix
+	docs.SwaggerInfoapi.BasePath = "/api/v1"
+
+	// Serve a runtime-mutated OpenAPI JSON that injects examples from env.
+	// MUST come before the /* UI handler so it isn't shadowed
+	r.Get("/api/docs/doc.json", serveSwaggerJSONWithExamples())
+
+	// Serve Swagger UI
+	r.Handle("/api/docs/*", httpSwagger.Handler(httpSwagger.InstanceName("api")))
+	r.Get("/api/docs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/api/docs/", http.StatusPermanentRedirect)
+	})
+}
+
+// Run I don't even see the code... All I see is blonde, brunette, redhead...
 func Run() {
 	l := logger.Get()
 	addr := config.MustPort("CORE_API_PORT")
@@ -129,4 +159,118 @@ func Run() {
 
 func main() {
 	Run()
+}
+
+// serveSwaggerJSONWithExamples reads the generated spec, injects runtime examples,
+// and returns the modified JSON.
+func serveSwaggerJSONWithExamples() http.HandlerFunc {
+	exEmail := config.MayString("API_DOCS_DEFAULT_EMAIL", "user@lumiumapp.com")
+	exPass := config.MayString("API_DOCS_DEFAULT_PASSWORD", "12345678")
+	exTenant := config.MayString("API_DOCS_DEFAULT_TENANT_ID", "")
+
+	raw := docs.SwaggerInfoapi.ReadDoc()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		var spec map[string]any
+		if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+			http.Error(w, "spec parse error", http.StatusInternalServerError)
+			return
+		}
+
+		loginExample := map[string]any{
+			"email":    exEmail,
+			"password": exPass,
+		}
+		if exTenant != "" {
+			loginExample["tenant_id"] = exTenant
+		}
+		setSchemaExamples(spec, []string{"LoginDTO", "auth.LoginDTO"}, loginExample)
+		setSchemaRequired(spec, []string{"LoginDTO", "auth.LoginDTO"}, []string{"email", "password"})
+		for _, p := range []string{"/auth/login", "/api/v1/auth/login"} {
+			setOperationRequestExample(spec, p, "post", loginExample)
+		}
+
+		signupExample := map[string]any{
+			"email":    exEmail,
+			"password": exPass,
+		}
+		if v := config.MayString("API_DOCS_DEFAULT_NAME", "Demo User"); v != "" {
+			signupExample["name"] = v
+		}
+		if v := config.MayString("API_DOCS_DEFAULT_TENANT_SLUG", ""); v != "" {
+			signupExample["tenant_slug"] = v
+		}
+		setSchemaExamples(spec, []string{"SignupDTO", "auth.SignupDTO"}, signupExample)
+		setSchemaRequired(spec, []string{"SignupDTO", "auth.SignupDTO"}, []string{"email", "password"})
+		for _, p := range []string{"/auth/register", "/api/v1/auth/register"} {
+			setOperationRequestExample(spec, p, "post", signupExample)
+		}
+
+		forgotExample := map[string]any{
+			"email": exEmail,
+		}
+		setSchemaExamples(spec, []string{"ForgotDTO", "auth.ForgotDTO"}, forgotExample)
+		setSchemaRequired(spec, []string{"ForgotDTO", "auth.ForgotDTO"}, []string{"email"})
+		for _, p := range []string{"/auth/forgot", "/api/v1/auth/forgot"} {
+			setOperationRequestExample(spec, p, "post", forgotExample)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(spec)
+	}
+}
+
+func setSchemaExamples(spec map[string]any, schemaKeys []string, example map[string]any) {
+	// Swagger v2
+	if defs, ok := spec["definitions"].(map[string]any); ok {
+		for _, key := range schemaKeys {
+			if s, ok := defs[key].(map[string]any); ok {
+				s["example"] = example
+				if props, ok := s["properties"].(map[string]any); ok {
+					for k, v := range example {
+						if p, ok := props[k].(map[string]any); ok {
+							p["example"] = v
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func setSchemaRequired(spec map[string]any, schemaKeys []string, required []string) {
+	// Swagger v2
+	if defs, ok := spec["definitions"].(map[string]any); ok {
+		for _, key := range schemaKeys {
+			if s, ok := defs[key].(map[string]any); ok {
+				s["required"] = required
+			}
+		}
+	}
+}
+
+func setOperationRequestExample(spec map[string]any, path, method string, example map[string]any) {
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		return
+	}
+	node, ok := paths[path].(map[string]any)
+	if !ok {
+		return
+	}
+	op, ok := node[strings.ToLower(method)].(map[string]any)
+	if !ok {
+		return
+	}
+
+	// Swagger v2: put example on body param schema
+	if params, ok := op["parameters"].([]any); ok {
+		for _, pi := range params {
+			if p, ok := pi.(map[string]any); ok && p["in"] == "body" {
+				if sch, ok := p["schema"].(map[string]any); ok {
+					sch["example"] = example
+				}
+			}
+		}
+	}
 }

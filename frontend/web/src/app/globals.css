@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@plugin "./hero.ts";
+
+@source "../**/*.{ts,tsx,js,jsx}";
+@source "../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
+
+/*
+-------------------------
+Theme tokens
+-------------------------
+*/
+
+@theme {
+  --color-background: #0b0d12; /* page bg */
+  --color-foreground: #ffffff;
+
+  --color-primary: #ef4444; /* red-500 */
+  --color-primary-foreground: #0b0d12; /* text on primary */
+  --color-secondary: #f97316; /* orange-500 */
+  --color-focus: #f97316;
+
+  --color-content1: #0f141b;
+  --color-content2: #111821;
+  --color-content3: #0c1016;
+
+  --color-divider: rgba(255, 255, 255, 0.1);
+
+  --color-default-100: #141923;
+  --color-default-200: #181e29;
+  --color-default-300: #1c2330;
+  --color-default-400: #222a39;
+  --color-default-500: #283142;
+  --color-default-600: #2e394c;
+  --color-default-700: #354158;
+  --color-default-800: #3c4963;
+  --color-default-900: #42516e;
+
+  --radius-small: 8px;
+  --radius-medium: 12px;
+  --radius-large: 16px;
+}
+
+/*
+-------------------------
+Brand custom properties
+-------------------------
+*/
+:root {
+  color-scheme: dark;
+
+  /* Core brand (red/orange) – HSL tuples for easy alpha control */
+  --brand-1: 0 84% 60%; /* red-500 */
+  --brand-2: 20 90% 55%; /* orange-500 */
+
+  --accent-amber: 38 92% 60%;
+  --accent-purple: 280 80% 70%;
+
+  --brand-1-20: hsl(var(--brand-1) / 0.2);
+  --brand-1-35: hsl(var(--brand-1) / 0.35);
+  --brand-1-55: hsl(var(--brand-1) / 0.55);
+  --brand-2-20: hsl(var(--brand-2) / 0.2);
+  --brand-2-35: hsl(var(--brand-2) / 0.35);
+  --brand-2-55: hsl(var(--brand-2) / 0.55);
+
+  --shadow-glow: 0 0 40px hsl(var(--brand-1) / 0.35);
+}
+
+html[data-theme="crimson"] {
+  --color-background: #0b0d12;
+  --color-foreground: #ffffff;
+  --color-primary: #ef4444;
+  --color-primary-foreground: #0b0d12;
+  --color-secondary: #f97316;
+  --color-focus: #f97316;
+
+  --color-content1: #0f141b;
+  --color-content2: #111821;
+  --color-content3: #0c1016;
+
+  --color-divider: rgba(255, 255, 255, 0.1);
+
+  --brand-1: 0 84% 60%;
+  --brand-2: 20 90% 55%;
+}
+
+/* Alternate mood  - not really feeling it but keeping for as a ref to a light theme */
+html[data-theme="aqua"] {
+  --color-primary: #06b6d4;
+  --color-secondary: #22c55e;
+  --color-focus: #06b6d4;
+
+  --brand-1: 190 100% 50%;
+  --brand-2: 160 100% 45%;
+}
+
+/*
+-------------------------
+Component utilities
+-------------------------
+*/
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md px-4 py-2 font-medium;
+    background-image: linear-gradient(90deg, hsl(var(--brand-1)), hsl(var(--brand-2)));
+    color: #0b0d12;
+    box-shadow: var(--shadow-glow);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.05);
+  }
+
+  .text-brand-gradient {
+    background-image: linear-gradient(90deg, hsl(var(--brand-1)), hsl(var(--brand-2)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .card-surface {
+    @apply border-divider border;
+    background-color: var(--color-content1);
+    background-color: color-mix(in oklab, var(--color-content1) 95%, transparent);
+  }
+
+  .ring-brand {
+    box-shadow: 0 0 0 1px hsl(var(--brand-1) / 0.35);
+  }
+
+  .nav-blur {
+    @apply border-divider border-b backdrop-blur;
+    background-color: color-mix(in oklab, var(--color-background) 30%, transparent);
+  }
+}
+
+/*
+-------------------------
+Background helpers
+-------------------------
+*/
+
+.bg-hero-crimson {
+  background:
+    radial-gradient(1100px 600px at 85% -10%, hsl(var(--brand-1) / 0.28), transparent 60%),
+    radial-gradient(800px 520px at 8% 100%, hsl(var(--brand-2) / 0.22), transparent 60%);
+}
+.bg-grid-dark {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.bg-vignette-bottom {
+  background: radial-gradient(60% 80% at 50% 100%, rgba(0, 0, 0, 0.65), transparent 60%);
+}

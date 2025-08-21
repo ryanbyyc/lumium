@@ -1,0 +1,429 @@
+definitions:
+  auth.AcceptedWire:
+    properties:
+      code:
+        example: accepted
+        type: string
+      message:
+        example: If an account exists, you'll receive an email with instructions.
+        type: string
+    type: object
+  auth.ErrorWire:
+    properties:
+      code:
+        description: Machine-readable code
+        example: invalid_credentials
+        type: string
+      message:
+        description: Human-readable message
+        example: Invalid email or password.
+        type: string
+    type: object
+  auth.ForgotDTO:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  auth.LoginDTO:
+    properties:
+      email:
+        type: string
+      mfa_challenge_id:
+        format: uuid
+        type: string
+      mfa_code:
+        type: string
+      password:
+        type: string
+      tenant_id:
+        format: uuid
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  auth.MFAChallengeDTO:
+    properties:
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
+  auth.MFAChallengeResult:
+    properties:
+      challengeID:
+        type: string
+      factors:
+        items:
+          type: string
+        type: array
+    type: object
+  auth.MFALockedResponse:
+    properties:
+      code:
+        example: mfa_required
+        type: string
+      details:
+        properties:
+          challenge_id:
+            example: ch_01JABCXYZ
+            type: string
+          factors:
+            example:
+            - '["totp"'
+            - '"email"]'
+            items:
+              type: string
+            type: array
+        type: object
+      message:
+        example: Additional verification required
+        type: string
+    type: object
+  auth.MFAVerifyDTO:
+    properties:
+      challenge_id:
+        type: string
+      code:
+        type: string
+    required:
+    - challenge_id
+    - code
+    type: object
+  auth.MFAVerifyOK:
+    properties:
+      ok:
+        example: true
+        type: boolean
+    type: object
+  auth.RefreshWire:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+    type: object
+  auth.ResetDTO:
+    properties:
+      password:
+        maxLength: 128
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - password
+    - token
+    type: object
+  auth.ResultWire:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      user:
+        $ref: '#/definitions/auth.UserPublic'
+    type: object
+  auth.SignupDTO:
+    properties:
+      email:
+        type: string
+      name:
+        maxLength: 120
+        type: string
+      password:
+        maxLength: 128
+        minLength: 8
+        type: string
+      tenant_slug:
+        maxLength: 60
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  auth.UserPublic:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      primary_tenant_id:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /auth/forgot:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Always returns 202 (Accepted) without revealing whether the email exists.
+        If the user exists, a reset token is generated and (normally) delivered out-of-band.
+      parameters:
+      - description: email to reset
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.ForgotDTO'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: accepted; no user enumeration
+          schema:
+            $ref: '#/definitions/auth.AcceptedWire'
+        "400":
+          description: bad request / validation error
+          schema:
+            type: string
+      summary: Forgot password
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Authenticate with email/password. On success returns an access token in the body
+        and sets a refresh-token HttpOnly cookie.
+      parameters:
+      - description: credentials
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.LoginDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie (name & attributes per server
+                config)
+              type: string
+          schema:
+            $ref: '#/definitions/auth.ResultWire'
+        "400":
+          description: bad request / validation error
+          schema:
+            type: string
+        "401":
+          description: invalid credentials
+          schema:
+            $ref: '#/definitions/auth.ErrorWire'
+        "423":
+          description: MFA required; complete challenge before retrying login
+          schema:
+            $ref: '#/definitions/auth.MFALockedResponse'
+      summary: Login
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Revoke the current refresh session and clear the token cookie.
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Set-Cookie:
+              description: Clears refresh token cookie
+              type: string
+          schema:
+            type: string
+      summary: Logout
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Return the current user derived from a Bearer access token
+      parameters:
+      - description: Bearer {access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.UserPublic'
+        "422":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/auth.ErrorWire'
+      summary: Current user
+      tags:
+      - auth
+  /auth/mfa/challenge:
+    post:
+      consumes:
+      - application/json
+      description: Issues a one-time MFA challenge for the user. Typically called
+        after a 423 `mfa_required` login response
+      parameters:
+      - description: user to challenge
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.MFAChallengeDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: challenge metadata
+          schema:
+            $ref: '#/definitions/auth.MFAChallengeResult'
+        "400":
+          description: bad request / validation error
+          schema:
+            type: string
+        "404":
+          description: user not found
+          schema:
+            type: string
+      summary: Start MFA challenge
+      tags:
+      - auth
+  /auth/mfa/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the 6-digit code for a challenge
+      parameters:
+      - description: verification payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.MFAVerifyDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: verification status
+          schema:
+            $ref: '#/definitions/auth.MFAVerifyOK'
+        "400":
+          description: bad request / validation error
+          schema:
+            type: string
+        "401":
+          description: invalid or expired code
+          schema:
+            $ref: '#/definitions/auth.ErrorWire'
+        "410":
+          description: challenge expired
+          schema:
+            type: string
+      summary: Verify MFA code
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: |-
+        Rotate the refresh session (from an HttpOnly cookie) and mint a new access token.
+        On success, returns a new access token in the body and sets a new refresh-token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              description: New HttpOnly refresh token cookie (name & attributes per
+                server config)
+              type: string
+          schema:
+            $ref: '#/definitions/auth.RefreshWire'
+        "422":
+          description: unauthorized or invalid/expired refresh token
+          schema:
+            $ref: '#/definitions/auth.ErrorWire'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new account. Success returns an access token in the body
+        and sets a refresh-token cookie
+      parameters:
+      - description: new account
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.SignupDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie (name & attributes per server
+                config)
+              type: string
+          schema:
+            $ref: '#/definitions/auth.ResultWire'
+        "400":
+          description: bad request / validation error
+          schema:
+            type: string
+        "409":
+          description: email already in use or tenant conflict
+          schema:
+            type: string
+      summary: Register
+      tags:
+      - auth
+  /auth/reset:
+    post:
+      consumes:
+      - application/json
+      description: Validates the reset token and sets a new password. On success clears
+        the refresh cookie and returns 204.
+      parameters:
+      - description: reset token + new password
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.ResetDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: password updated; no content
+          headers:
+            Set-Cookie:
+              description: clears refresh cookie
+              type: string
+        "400":
+          description: bad request / validation error
+          schema:
+            type: string
+        "422":
+          description: invalid or expired token
+          schema:
+            $ref: '#/definitions/auth.ErrorWire'
+      summary: Reset password
+      tags:
+      - auth
+swagger: "2.0"

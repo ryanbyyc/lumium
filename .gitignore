@@ -34,4 +34,8 @@ go.work.sum
 
 # binaries
 /backend/bin/*
+
 !/backend/bin/.gitkeep
+/frontend/web/node_modules/*
+
+/frontend/web/.next

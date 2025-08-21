@@ -2,11 +2,13 @@ root = "/app/backend"
 tmp_dir = "bin"
 
 [build]
-cmd = "go build -o ./bin/api ./services/api"
+cmd = "cd services/api && swag init --generalInfo ./main.go --dir ./ --output ./docs --instanceName api && cd - >/dev/null && go build -o ./bin/api ./services/api"
 bin = "bin/api"
-include_ext = ["go"]
+
+include_ext = ["go", "yaml", "yml", "toml"]
 include_dir = ["services/api", "lib"]
-exclude_dir = ["bin", ".git", "vendor"]
+exclude_dir = ["services/api/docs", "bin", ".git", "vendor"]
+
 delay = 300
 
 [log]

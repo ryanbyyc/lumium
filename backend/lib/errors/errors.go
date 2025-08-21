@@ -1,3 +1,4 @@
+// Package errors is the core errors convenience package
 package errors
 
 import (
@@ -8,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Error represents an error that could be wrapping another error, it includes a code for determining what
-// triggered the error
+// Error represents an error that could be wrapping another error,
+// it includes a code for determining what triggered the error
 type Error struct {
 	orig  error
 	msg   string
@@ -17,6 +18,9 @@ type Error struct {
 	field string
 }
 
+// Wire is the JSON-serializable form of an Error used in API responses.
+// It includes the machine-readable code, a human message, and an
+// optional field name for validation errors
 type Wire struct {
 	Code    ErrorCode `json:"code"`
 	Message string    `json:"message"`
@@ -189,4 +193,19 @@ func DBErrorCode(err error) *ErrorCode {
 		}
 	}
 	return nil
+}
+
+// WithField attaches a field to an *Error; if err isn't *Error, it's returned unchanged.
+func WithField(err error, field string) error {
+	var e *Error
+	if sterrors.As(err, &e) {
+		e.field = field
+		return e
+	}
+	return err
+}
+
+// DuplicateKeyFieldf is sugar for DuplicateKeyf(...)+WithField(...)
+func DuplicateKeyFieldf(field, format string, a ...interface{}) error {
+	return WithField(DuplicateKeyf(format, a...), field)
 }

@@ -1,3 +1,4 @@
+// Package logger is the Lumium log wrapper
 package logger
 
 import (
@@ -13,13 +14,14 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
-var once sync.Once
-var log zerolog.Logger
+var (
+	once sync.Once
+	log  zerolog.Logger
+)
 
 // Get returns the logger instance as a singleton
 func Get() zerolog.Logger {
 	once.Do(func() {
-
 		// Zerolog global configuration
 		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 		zerolog.TimeFieldFormat = time.RFC3339Nano
@@ -68,7 +70,8 @@ func levelFromEnvDefaultDebug() zerolog.Level {
 	// Then try numeric levels
 	if n, err := strconv.Atoi(raw); err == nil {
 		lvl := zerolog.Level(n)
-		// Basic sanity clamp: known zerolog levels range from TraceLevel..PanicLevel and special NoLevel/Disabled
+		// Basic sanity clamp: known zerolog levels range from
+		// TraceLevel..PanicLevel and special NoLevel/Disabled
 		if int(lvl) >= int(zerolog.TraceLevel) && int(lvl) <= int(zerolog.PanicLevel) {
 			return lvl
 		}
